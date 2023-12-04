@@ -206,9 +206,6 @@ func main() {
 	password := request.Credential.Password
 	username := request.Credential.Username
 
-	fmt.Println("password :", password)
-	fmt.Println("content :", password)
-
 	if isBase64(password) {
 		fmt.Println("Password encryption enabled. Attempting to decrypt password.")
 
