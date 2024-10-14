@@ -26,7 +26,7 @@ const (
 	ClientSecret = ""
 )
 
-var token string
+var accessToken string
 
 type Token struct {
 	Token_type string `json:"token_type"`
@@ -34,8 +34,9 @@ type Token struct {
 	Token      string `json:"access_token"`
 }
 
-func setToken(token Token) string {
-	return token.Token
+func setToken(token Token) bool {
+	accessToken = token.Token
+	return true
 }
 
 type Response struct {
@@ -87,11 +88,11 @@ func get(url string, data *strings.Reader) (*http.Request, error) {
 }
 
 // Retrieve Bearer Token for Oauth2.0 Authenticaton
-func getToken() (string, error) {
+func getToken() (bool, error) {
 	var token Token
 	request, err := post("/iso/oauth2/token", strings.NewReader("grant_type=client_credentials"))
 	if err != nil {
-		return "", err
+		return false, err
 	}
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
 	auth := base64.StdEncoding.EncodeToString([]byte(ClientId + ":" + ClientSecret))
@@ -100,19 +101,19 @@ func getToken() (string, error) {
 	client := &http.Client{}
 	res, err := client.Do(request)
 	if err != nil {
-		return "", err
+		return false, err
 	}
 
 	defer res.Body.Close()
 	//TODO: ioutl.ReadAll is deprecated
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		return "", err
+		return false, err
 	}
 
 	err = json.Unmarshal(body, &token)
 	if err != nil {
-		return "", err
+		return false, err
 	}
 
 	return setToken(token), nil
@@ -127,7 +128,7 @@ func getCredential(credentialID int) (*Data, error) {
 		return nil, err
 	}
 	request.Header.Add("Content-Type", "application/json")
-	request.Header.Add("Authorization", "Bearer "+token)
+	request.Header.Add("Authorization", "Bearer "+accessToken)
 
 	client := &http.Client{}
 	res, err := client.Do(request)
@@ -192,11 +193,11 @@ func isBase64(s string) bool {
 func main() {
 	var request *Data
 
-	token, err := getToken()
-	if err != nil {
+	success, err := getToken()
+	if !success {
 		log.Fatal(err)
 	}
-	fmt.Println("Token: " + token)
+	fmt.Println("Token: " + accessToken)
 
 	var credentialID int
 	fmt.Print("Enter Credential ID: ")
