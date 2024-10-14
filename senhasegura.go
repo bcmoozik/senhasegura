@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-//Users must configure the const var to their auth settings.
+// Users must configure the const var to their auth settings.
 // Host "https://your.senhasegurahost.com"
 // PKPath File path to the private key to decrypt sensitive data
 // ClientId for A2A API Oauth2.0 authentication
@@ -26,10 +26,16 @@ const (
 	ClientSecret = ""
 )
 
+var token string
+
 type Token struct {
 	Token_type string `json:"token_type"`
 	Expires    int    `json:"expires_in"`
 	Token      string `json:"access_token"`
+}
+
+func setToken(token Token) string {
+	return token.Token
 }
 
 type Response struct {
@@ -70,30 +76,35 @@ type Data struct {
 	Exception  Exception  `json:"exception"`
 }
 
+func post(url string, data *strings.Reader) (*http.Request, error) {
+	url = Host + url
+	return http.NewRequest("POST", url, data)
+}
+
+func get(url string, data *strings.Reader) (*http.Request, error) {
+	url = Host + url
+	return http.NewRequest("GET", url, data)
+}
+
 // Retrieve Bearer Token for Oauth2.0 Authenticaton
 func getToken() (string, error) {
-	data := strings.NewReader("grant_type=client_credentials")
-	authEndpoint := "/iso/oauth2/token"
-	method := "POST"
 	var token Token
-
-	auth := base64.StdEncoding.EncodeToString([]byte(ClientId + ":" + ClientSecret))
-	client := &http.Client{}
-	request, err := http.NewRequest(method, Host+authEndpoint, data)
+	request, err := post("/iso/oauth2/token", strings.NewReader("grant_type=client_credentials"))
 	if err != nil {
 		return "", err
 	}
-
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+	auth := base64.StdEncoding.EncodeToString([]byte(ClientId + ":" + ClientSecret))
 	request.Header.Add("Authorization", "Basic "+auth)
 
+	client := &http.Client{}
 	res, err := client.Do(request)
 	if err != nil {
 		return "", err
 	}
 
 	defer res.Body.Close()
-
+	//TODO: ioutl.ReadAll is deprecated
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return "", err
@@ -104,31 +115,28 @@ func getToken() (string, error) {
 		return "", err
 	}
 
-	return token.Token, nil
+	return setToken(token), nil
 }
 
 // Get Credential for specific account on specific device
-func getCredential(token string, credentialID int) (*Data, error) {
-	endpoint := fmt.Sprintf("/iso/pam/credential/%d", credentialID)
-	method := "GET"
+func getCredential(credentialID int) (*Data, error) {
 	var data Data
 
-	client := &http.Client{}
-	request, err := http.NewRequest(method, Host+endpoint, nil)
+	request, err := get(fmt.Sprintf("/iso/pam/credential/%d", credentialID), nil)
 	if err != nil {
 		return nil, err
 	}
-
 	request.Header.Add("Content-Type", "application/json")
 	request.Header.Add("Authorization", "Bearer "+token)
 
+	client := &http.Client{}
 	res, err := client.Do(request)
 	if err != nil {
 		return nil, err
 	}
 
 	defer res.Body.Close()
-
+	//TODO: ioutl.ReadAll is deprecated
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
@@ -197,7 +205,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	request, err = getCredential(token, credentialID)
+	request, err = getCredential(credentialID)
 
 	if request.Response.Status != 200 {
 		log.Fatalf("Failed to gather credential. Error: %s\n", request.Response.Message)
